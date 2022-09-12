@@ -116,6 +116,7 @@ class StableDiffusionEngine:
             num_inference_steps = 32,
             guidance_scale = 7.5,
             eta = 0.0,
+            update_image = None,
             should_halt = None
     ):
         # extract condition
@@ -214,6 +215,10 @@ class StableDiffusionEngine:
             if mask is not None:
                 init_latents_proper = self.scheduler.add_noise(init_latents, noise, t)
                 latents = ((init_latents_proper * mask) + (latents * (1 - mask)))[0]
+
+            if update_image is not None:
+                image = self._render_image(latents)
+                update_image(image, i)
 
         image = self._render_image(latents)
         return image

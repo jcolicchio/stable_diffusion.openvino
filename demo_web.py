@@ -83,12 +83,22 @@ def run(engine):
                 max_value = 2 ** 31
             )
 
+            show_progress = st.checkbox(
+                label='Show Progress'
+            )
+
             generate = st.form_submit_button(
                 label = 'Generate',
                 on_click = update_seed
             )
 
         if prompt:
+            image_container = st if show_progress is False else st.empty()
+
+            def update_image(image, i = None):
+                image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+                image_container.image(image, width=512, caption=None if i is None else f'{i + 1} / {num_inference_steps}')
+
             run_id = st.session_state.run_id
 
             def should_halt():
@@ -102,9 +112,10 @@ def run(engine):
                 strength = strength,
                 num_inference_steps = num_inference_steps,
                 guidance_scale = guidance_scale,
+                update_image = None if show_progress is False else update_image,
                 should_halt = should_halt
             )
-            st.image(Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB)), width=512)
+            update_image(image)
 
 @st.cache(allow_output_mutation=True)
 def load_engine(args):
