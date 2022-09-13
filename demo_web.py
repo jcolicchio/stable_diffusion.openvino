@@ -13,10 +13,12 @@ from stable_diffusion_engine import StableDiffusionEngine
 # scheduler
 from diffusers import PNDMScheduler
 
-def clicked_generate():
-    st.session_state.clicked_generate = True
 
 def run(engine):
+    def clear_output():
+        if os.path.isfile('output.png'):
+            os.remove('output.png')
+
     # init session_state if needed
     if 'random_seed' not in st.session_state:
         st.session_state.random_seed = random.randint(0, 2 ** 31)
@@ -24,6 +26,9 @@ def run(engine):
         st.session_state.seed = st.session_state.random_seed
     if 'clicked_generate' not in st.session_state:
         st.session_state.clicked_generate = False
+    if 'cleared_output' not in st.session_state:
+        clear_output()
+        st.session_state.cleared_output = True
 
     with st.form(key="request"):
         if 'run_id' not in st.session_state:
@@ -41,18 +46,28 @@ def run(engine):
 
             with st.expander("Initial image"):
                 init_image = st.file_uploader("init_image", type=['jpg','png','jpeg'])
+
                 stroke_width = st.slider("stroke_width", 1, 100, 50)
+
                 stroke_color = st.color_picker("stroke_color", "#00FF00")
+
                 canvas_result = st_canvas(
                     fill_color="rgb(0, 0, 0)",
                     stroke_width = stroke_width,
                     stroke_color = stroke_color,
                     background_color = "#000000",
                     background_image = Image.open(init_image) if init_image else None,
-                    height = 512,
-                    width = 512,
+                    height = 478,
+                    width = 478,
                     drawing_mode = "freedraw",
                     key = "canvas"
+                )
+
+                strength = st.slider(
+                    label='strength',
+                    min_value = 0.0,
+                    max_value = 1.0,
+                    value = 0.5
                 )
 
             if init_image is not None:
@@ -61,6 +76,12 @@ def run(engine):
             if canvas_result.image_data is not None:
                 mask = cv2.cvtColor(canvas_result.image_data, cv2.COLOR_BGRA2GRAY)
                 mask[mask > 0] = 255
+
+                # ignore empty mask
+                if mask.any():
+                    cv2.imwrite(f'mask.png', mask)
+                else:
+                    mask = None
             else:
                 mask = None
 
@@ -76,13 +97,6 @@ def run(engine):
                 value=7
             )
 
-            strength = st.slider(
-                label='strength',
-                min_value = 0.0,
-                max_value = 1.0,
-                value = 0.5
-            )
-
             seed = st.number_input(
                 label='seed',
                 key='seed',
@@ -94,25 +108,30 @@ def run(engine):
                 label='Show Progress'
             )
 
+            def clicked_generate():
+                st.session_state.clicked_generate = True
+
             generate = st.form_submit_button(
                 label = 'Generate',
                 on_click = clicked_generate
             )
 
+        image_container = st if show_progress is False else st.empty()
+
+        def update_image(image, i = None):
+            cv2.imwrite('output.png', image)
+            image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+            image_container.image(image, width=512, caption=None if i is None else f'{i + 1} / {num_inference_steps}')
+
         if prompt and st.session_state.clicked_generate:
             st.session_state.clicked_generate = False
-
-            image_container = st if show_progress is False else st.empty()
-
-            def update_image(image, i = None):
-                image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-                image_container.image(image, width=512, caption=None if i is None else f'{i + 1} / {num_inference_steps}')
 
             run_id = st.session_state.run_id
 
             def should_halt():
                 return False if 'run_id' not in st.session_state else run_id == st.session_state.run_id
 
+            clear_output()
             np.random.seed(seed)
             image = engine(
                 prompt = prompt,
@@ -125,6 +144,8 @@ def run(engine):
                 should_halt = should_halt
             )
             update_image(image)
+        elif os.path.isfile('output.png'):
+            update_image(cv2.imread('output.png'))
 
 @st.cache(allow_output_mutation=True)
 def load_engine(args):
