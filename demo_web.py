@@ -45,7 +45,7 @@ def run(engine):
                 st.session_state.seed = st.session_state.random_seed
 
             with st.expander("Initial image"):
-                init_image = st.file_uploader("init_image", type=['jpg','png','jpeg'])
+                init_image_path = st.file_uploader("init_image", type=['jpg','png','jpeg'])
 
                 stroke_width = st.slider("stroke_width", 1, 100, 50)
 
@@ -56,7 +56,7 @@ def run(engine):
                     stroke_width = stroke_width,
                     stroke_color = stroke_color,
                     background_color = "#000000",
-                    background_image = Image.open(init_image) if init_image else None,
+                    background_image = Image.open(init_image_path) if init_image_path else None,
                     height = 478,
                     width = 478,
                     drawing_mode = "freedraw",
@@ -70,8 +70,9 @@ def run(engine):
                     value = 0.5
                 )
 
-            if init_image is not None:
-                init_image = cv2.cvtColor(np.array(Image.open(init_image)), cv2.COLOR_RGB2BGR)
+            init_image = None
+            if init_image_path is not None:
+                init_image = cv2.cvtColor(np.array(Image.open(init_image_path)), cv2.COLOR_RGB2BGR)
 
             if canvas_result.image_data is not None:
                 mask = cv2.cvtColor(canvas_result.image_data, cv2.COLOR_BGRA2GRAY)
@@ -144,6 +145,7 @@ def run(engine):
                 should_halt = should_halt
             )
             update_image(image)
+            st.write(f'--prompt "{prompt}"{"" if init_image_path is None else " --init-image "}{"" if init_image_path is None else init_image_path}{"" if init_image_path is None else " --strength "}{"" if init_image_path is None else strength} --num-inference-steps {num_inference_steps} --guidance-scale {guidance_scale} --seed {seed}')
         elif os.path.isfile('output.png'):
             update_image(cv2.imread('output.png'))
 
